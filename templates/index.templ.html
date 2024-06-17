@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<script src="./static/htmx.js"></script>
+</head>
+
+<body>
+	<span hx-trigger="every 10s" hx-get="./update" hx-target="#content"></span>
+	<div id="content">
+	</div>
+</body>
+
+</html>
