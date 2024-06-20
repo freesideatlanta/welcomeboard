@@ -2,16 +2,22 @@ package content
 
 import (
 	"bytes"
+	"crypto/x509"
 	"embed"
 	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"math/rand"
 	"mime"
+	"net/http"
 	"os"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 //go:embed templates
@@ -23,7 +29,6 @@ var templates *template.Template
 var greetings embed.FS
 
 func init() {
-	rand.Seed(time.Now().Unix())
 	var err error
 	templates, err = template.ParseFS(templatesFS, "templates/*")
 	if err != nil {
@@ -32,7 +37,12 @@ func init() {
 }
 
 type ContentRouter struct {
-	meetupAPIKey string
+	meetupKey    string
+	meetupSecret string
+	pemString    string
+	memberID     string
+	consumerKey  string
+	nextEvent    *Event
 }
 
 type Event struct {
@@ -41,9 +51,13 @@ type Event struct {
 	ImageB64    string
 }
 
-func NewContentRouter(meetupAPIKey string) *ContentRouter {
+func NewContentRouter(meetupKey string, meetupSecret string, pemString string, memberID string, consumerKey string) *ContentRouter {
 	r := ContentRouter{
-		meetupAPIKey: meetupAPIKey,
+		meetupKey:    meetupKey,
+		meetupSecret: meetupSecret,
+		pemString:    pemString,
+		memberID:     memberID,
+		consumerKey:  consumerKey,
 	}
 	go r.startGettingEvents()
 	return &r
@@ -51,16 +65,62 @@ func NewContentRouter(meetupAPIKey string) *ContentRouter {
 
 func (c *ContentRouter) startGettingEvents() {
 	ticker := time.NewTicker(10 * time.Minute)
-	c.UpdateEvents()
+	c.CacheEvents()
 	for {
 		<-ticker.C
-		c.UpdateEvents()
+		c.CacheEvents()
 	}
 
 }
 
-func (c *ContentRouter) UpdateEvents() {
+func (c *ContentRouter) CacheEvents() {
+	c.GetLoginToken()
+}
 
+func (c *ContentRouter) GetLoginToken() string {
+	tok := jwt.New(jwt.SigningMethodRS256)
+	tok.Header["kid"] = c.consumerKey
+	claims := tok.Claims.(jwt.MapClaims)
+	claims["sub"] = c.memberID
+	claims["iss"] = c.meetupKey
+	claims["aud"] = "api.meedup.com"
+	claims["exp"] = time.Now().Add(time.Second * 120).Unix()
+	block, _ := pem.Decode([]byte(c.pemString))
+	key, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
+
+	tokenString, err := tok.SignedString(key)
+	if err != nil {
+		fmt.Println("oofskies: " + err.Error())
+		return ""
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "https://secure.meetup.com/oauth2/access", strings.NewReader(fmt.Sprintf(`grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s`, tokenString)))
+	if err != nil {
+		fmt.Println("sjdfklsjklfjs: ", err.Error())
+	}
+	req.Header.Add("content-type", "application/x-www-form-urlencoded")
+	req.Header.Add("user-agent", "curl/8.6.0")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println("riperooni: ", err.Error())
+		return ""
+	}
+
+	apiret := apiJwtReturn{}
+	err = json.NewDecoder(resp.Body).Decode(&apiret)
+	if err != nil {
+		fmt.Println("fuuuuuuck: ", err.Error())
+		return ""
+	}
+	return apiret.AccessToken
+
+}
+
+type apiJwtReturn struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	TokenType    string `json:"token_type"`
 }
 
 func (c *ContentRouter) getTimelyEvent() *Event {

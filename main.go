@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 
 	"github.com/freesideatlanta/welcomeboard/content"
 )
@@ -17,16 +18,44 @@ var templatesFS embed.FS
 
 var templates *template.Template
 
+var meetupKey string
+var meetupSecret string
+var pemString string
+var memberID string
+var consumerKey string
+
 func init() {
 	var err error
 	templates, err = template.ParseFS(templatesFS, "templates/*")
 	if err != nil {
 		panic(err)
 	}
+
+	meetupKey = os.Getenv("MEETUP_KEY")
+	if meetupKey == "" {
+		panic("no meetup key provided (env var MEETUP_KEY)")
+	}
+	meetupSecret = os.Getenv("MEETUP_SECRET")
+	if meetupKey == "" {
+		panic("no meetup secret provided (env var MEETUP_SECRET)")
+	}
+	pemString = os.Getenv("MEETUP_PEM_STRING")
+	if pemString == "" {
+		panic("no meetup pem string provided (env var MEETUP_PEM_STRING)")
+	}
+	memberID = os.Getenv("MEETUP_MEMBER_ID")
+	if memberID == "" {
+		panic("no meetup memberID string provided (env var MEETUP_MEMBER_ID)")
+	}
+	consumerKey = os.Getenv("MEETUP_CONSUMER_KEY")
+	if consumerKey == "" {
+		panic("no meetup pem string provided (env var MEETUP_CONSUMER_KEY)")
+	}
+
 }
 
 func main() {
-	router := content.NewContentRouter("meetupAPIKey")
+	router := content.NewContentRouter(meetupKey, meetupSecret, pemString, memberID, consumerKey)
 
 	http.HandleFunc("/", indexPage)
 	http.HandleFunc("/update", updateFunc(router))
