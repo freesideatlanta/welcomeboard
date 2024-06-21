@@ -37,12 +37,12 @@ func init() {
 }
 
 type ContentRouter struct {
+	timelyEvent  *Event
 	meetupKey    string
 	meetupSecret string
 	pemString    string
 	memberID     string
 	consumerKey  string
-	nextEvent    *Event
 }
 
 type Event struct {
@@ -74,7 +74,8 @@ func (c *ContentRouter) startGettingEvents() {
 }
 
 func (c *ContentRouter) CacheEvents() {
-	c.GetLoginToken()
+	tok := c.GetLoginToken()
+	c.getTimelyEvent(tok)
 }
 
 func (c *ContentRouter) GetLoginToken() string {
@@ -119,12 +120,35 @@ func (c *ContentRouter) GetLoginToken() string {
 type apiJwtReturn struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
-func (c *ContentRouter) getTimelyEvent() *Event {
+func (c *ContentRouter) getTimelyEvent(apiToken string) *Event {
+	reqBody := `{
+		"query":"event(id: "276754274") {
+    			title
+    			description
+    			dateTime
+  		}",
+		"variables":""
+	}`
+	req, err := http.NewRequest("Post", "https://api.meetup.com/gql", strings.NewReader(reqBody))
+	if err != nil {
+		fmt.Println("unable to generate request to meetup api: ", err.Error())
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+apiToken)
+	req.Header.Add("user-agent", "curl/8.6.0")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil{
+		fmt.Println("error querying graphql api: " + err.Error())
+	}
+	io.Copy(os.Stdout,resp.Body)
+
+
 	return nil
+
 	/*
 		req, err := http.NewRequest(http.MethodGet, "https://filesamples.com/samples/image/png/sample_640%C3%97426.png", nil)
 		if err != nil {
@@ -152,8 +176,13 @@ type ImageInfo struct {
 	Data string
 }
 
+func (c *ContentRouter) getTimelyEventFromCache() *Event {
+
+	return nil
+}
+
 func (c *ContentRouter) GetContent() []byte {
-	event := c.getTimelyEvent()
+	event := c.getTimelyEventFromCache()
 	if event == nil {
 		return genericGreeting()
 	}
