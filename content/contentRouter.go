@@ -48,7 +48,10 @@ type ContentRouter struct {
 type Event struct {
 	Title       string
 	Description string
+	ImageURL    string
 	ImageB64    string
+	Time        time.Time
+	EndTime     time.Time
 }
 
 func NewContentRouter(meetupKey string, meetupSecret string, pemString string, memberID string, consumerKey string) *ContentRouter {
@@ -59,6 +62,8 @@ func NewContentRouter(meetupKey string, meetupSecret string, pemString string, m
 		memberID:     memberID,
 		consumerKey:  consumerKey,
 	}
+	r.CacheEvents()
+	os.Exit(0)
 	go r.startGettingEvents()
 	return &r
 }
@@ -124,28 +129,64 @@ type apiJwtReturn struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
+type graphQlQuery struct {
+	Query string `json:"query"`
+}
+
 func (c *ContentRouter) getTimelyEvent(apiToken string) *Event {
-	reqBody := `{
-		"query":"event(id: "276754274") {
-    			title
-    			description
-    			dateTime
-  		}",
-		"variables":""
-	}`
-	req, err := http.NewRequest("Post", "https://api.meetup.com/gql", strings.NewReader(reqBody))
+	q := `query {
+  groupByUrlname(urlname: "freeside-atlanta") {
+    unifiedEvents(
+      sortOrder: ASC
+    ) {
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      edges {
+        cursor
+        node {
+          id
+          title
+          shortDescription
+          imageUrl
+          dateTime
+          endTime
+        }
+      }
+    }
+  }
+}`
+	queryBytes, err := json.Marshal(graphQlQuery{Query: q})
+	if err != nil{
+		fmt.Println("unable to marshal graphQlQuery: ", err.Error())
+	}
+	req, err := http.NewRequest(http.MethodPost, "https://api.meetup.com/gql", bytes.NewBuffer(queryBytes))
 	if err != nil {
 		fmt.Println("unable to generate request to meetup api: ", err.Error())
 	}
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", "Bearer "+apiToken)
+	req.Header.Add("content-type", "application/json")
+	req.Header.Add("authorization", "Bearer "+apiToken)
 	req.Header.Add("user-agent", "curl/8.6.0")
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil{
+	if err != nil {
 		fmt.Println("error querying graphql api: " + err.Error())
 	}
-	io.Copy(os.Stdout,resp.Body)
 
+	var res UnPaginatedResult
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	if err != nil {
+		fmt.Println("unable to decode api respone: ", err.Error())
+	}
+
+	events, err := flatten(res)
+	if err != nil {
+		fmt.Println("unable to flatten api response: ", err.Error())
+	}
+
+	json.NewEncoder(os.Stdout).Encode(events)
 
 	return nil
 
