@@ -9,10 +9,12 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"mime"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -192,34 +194,22 @@ func (c *ContentRouter) getTimelyEvent(apiToken string) *Event {
 			break
 		}
 	}
-	return events[relevantEventIndex]
-	/*
-	   req, err := http.NewRequest(http.MethodGet, "https://filesamples.com/samples/image/png/sample_640%C3%97426.png", nil)
-
-	   	if err != nil {
-	   		fmt.Println("oops: ", err.Error())
-	   	}
-
-	   resp, err := http.DefaultClient.Do(req)
-
-	   	if err != nil {
-	   		fmt.Println("oops2: ", err.Error())
-	   	}
-
-	   imageData, err := io.ReadAll(resp.Body)
-
-	   	if err != nil {
-	   		fmt.Println("oops3: ", err.Error())
-	   	}
-
-	   imgenc := base64.StdEncoding.EncodeToString(imageData)
-
-	   	return &Event{
-	   		Title:       "Doing stuff",
-	   		Description: "We here at freeside are doing stuff and things! wow! holy crap!",
-	   		ImageB64:    imgenc,
-	   	}
-	*/
+	ret := events[relevantEventIndex]
+	// get image base64 data
+	req, err = http.NewRequest(http.MethodGet, ret.ImageURL, nil)
+	if err != nil {
+		fmt.Println("oops: ", err.Error())
+	}
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		fmt.Println("oops2: ", err.Error())
+	}
+	imageData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("oops3: ", err.Error())
+	}
+	ret.ImageB64 = base64.StdEncoding.EncodeToString(imageData)
+	return ret
 }
 
 type ImageInfo struct {
@@ -236,9 +226,27 @@ func (c *ContentRouter) GetContent() []byte {
 	return c.eventGreeting(event)
 }
 
+type EventGreetingData struct {
+	Title       string
+	Description string
+	Mime        string
+	DeltaTime   string
+	IsHappening bool
+}
+
 func (c *ContentRouter) eventGreeting(e *Event) []byte {
 	buf := bytes.NewBuffer([]byte{})
-	templates.ExecuteTemplate(buf, "eventnow.template.html", e)
+	splitName := strings.Split(e.ImageURL, ".")
+	extension := splitName[len(splitName)-1]
+	mimeType := mime.TypeByExtension(extension)
+	eventContent := EventGreetingData{
+		Title:       e.Title,
+		Description: e.Description,
+		Mime:        mimeType,
+		IsHappening: !time.Now().Before(e.Time),
+		DeltaTime:   strconv.Itoa(int(math.Abs(float64(time.Since(e.Time).Minutes())))),
+	}
+	templates.ExecuteTemplate(buf, "eventnow.template.html", eventContent)
 	return buf.Bytes()
 }
 
