@@ -46,12 +46,12 @@ type ContentRouter struct {
 }
 
 type Event struct {
+	Time        time.Time
+	EndTime     time.Time
 	Title       string
 	Description string
 	ImageURL    string
 	ImageB64    string
-	Time        time.Time
-	EndTime     time.Time
 }
 
 func NewContentRouter(meetupKey string, meetupSecret string, pemString string, memberID string, consumerKey string) *ContentRouter {
@@ -63,7 +63,6 @@ func NewContentRouter(meetupKey string, meetupSecret string, pemString string, m
 		consumerKey:  consumerKey,
 	}
 	r.CacheEvents()
-	os.Exit(0)
 	go r.startGettingEvents()
 	return &r
 }
@@ -80,7 +79,7 @@ func (c *ContentRouter) startGettingEvents() {
 
 func (c *ContentRouter) CacheEvents() {
 	tok := c.GetLoginToken()
-	c.getTimelyEvent(tok)
+	c.timelyEvent = c.getTimelyEvent(tok)
 }
 
 func (c *ContentRouter) GetLoginToken() string {
@@ -160,7 +159,7 @@ func (c *ContentRouter) getTimelyEvent(apiToken string) *Event {
   }
 }`
 	queryBytes, err := json.Marshal(graphQlQuery{Query: q})
-	if err != nil{
+	if err != nil {
 		fmt.Println("unable to marshal graphQlQuery: ", err.Error())
 	}
 	req, err := http.NewRequest(http.MethodPost, "https://api.meetup.com/gql", bytes.NewBuffer(queryBytes))
@@ -186,29 +185,40 @@ func (c *ContentRouter) getTimelyEvent(apiToken string) *Event {
 		fmt.Println("unable to flatten api response: ", err.Error())
 	}
 
-	json.NewEncoder(os.Stdout).Encode(events)
-
-	return nil
-
+	relevantEventIndex := 0
+	for i := 0; i < len(events); i++ {
+		if events[i].Time.After(time.Now()) || events[i].EndTime.After(time.Now()) {
+			relevantEventIndex = i
+			break
+		}
+	}
+	return events[relevantEventIndex]
 	/*
-		req, err := http.NewRequest(http.MethodGet, "https://filesamples.com/samples/image/png/sample_640%C3%97426.png", nil)
-		if err != nil {
-			fmt.Println("oops: ", err.Error())
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			fmt.Println("oops2: ", err.Error())
-		}
-		imageData, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println("oops3: ", err.Error())
-		}
-		imgenc := base64.StdEncoding.EncodeToString(imageData)
-		return &Event{
-			Title:       "Doing stuff",
-			Description: "We here at freeside are doing stuff and things! wow! holy crap!",
-			ImageB64:    imgenc,
-		}
+	   req, err := http.NewRequest(http.MethodGet, "https://filesamples.com/samples/image/png/sample_640%C3%97426.png", nil)
+
+	   	if err != nil {
+	   		fmt.Println("oops: ", err.Error())
+	   	}
+
+	   resp, err := http.DefaultClient.Do(req)
+
+	   	if err != nil {
+	   		fmt.Println("oops2: ", err.Error())
+	   	}
+
+	   imageData, err := io.ReadAll(resp.Body)
+
+	   	if err != nil {
+	   		fmt.Println("oops3: ", err.Error())
+	   	}
+
+	   imgenc := base64.StdEncoding.EncodeToString(imageData)
+
+	   	return &Event{
+	   		Title:       "Doing stuff",
+	   		Description: "We here at freeside are doing stuff and things! wow! holy crap!",
+	   		ImageB64:    imgenc,
+	   	}
 	*/
 }
 
@@ -217,14 +227,10 @@ type ImageInfo struct {
 	Data string
 }
 
-func (c *ContentRouter) getTimelyEventFromCache() *Event {
-
-	return nil
-}
-
 func (c *ContentRouter) GetContent() []byte {
-	event := c.getTimelyEventFromCache()
-	if event == nil {
+	event := c.timelyEvent
+	// if we are more than an hour out or the event doesn't exist
+	if event == nil || time.Now().Before(event.Time.Add(-time.Hour*1)) {
 		return genericGreeting()
 	}
 	return c.eventGreeting(event)
