@@ -1,5 +1,13 @@
 <div>
+	<p>Freeside Atlanta</p>
 	<p>{{ .Title }}</p>
+	{{ if .isHappening }}
+	<p> Is under way!
+	<p>
+		{{ else }}
+	<p> Is starting in {{ .DeltaTime }} minutes!
+	<p>
+		{{ end }}
 	<p>{{ .Description}}</p>
-	<img src="data:image/png;charset=UTF-8;base64,{{ .ImageB64 }}"></img>
+	<img src="data:image/{{ .Mime }};charset=UTF-8;base64,{{ .Data }}"></img>
 </div>
