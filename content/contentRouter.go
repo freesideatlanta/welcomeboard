@@ -220,7 +220,7 @@ type ImageInfo struct {
 func (c *ContentRouter) GetContent() []byte {
 	event := c.timelyEvent
 	// if we are more than an hour out or the event doesn't exist
-	if event == nil || time.Now().Before(event.Time.Add(-time.Hour*1000)) {
+	if event == nil || time.Now().Before(event.Time.Add(-time.Minute * 30)) {
 		return genericGreeting()
 	}
 	return c.eventGreeting(event)
