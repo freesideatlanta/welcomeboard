@@ -75,9 +75,9 @@ func NewParsetime(in string) (time.Time, error) {
 	multiple := 0
 	switch offsetString[0] {
 	case '-':
-		multiple = -1
-	case '+':
 		multiple = 1
+	case '+':
+		multiple = -1
 	}
 	splitOffset := strings.Split(offsetString[1:], ":")
 	hours, err := strconv.Atoi(splitOffset[0])

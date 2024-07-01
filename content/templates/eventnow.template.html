@@ -1,13 +1,8 @@
 <div>
-	<p style="font-size: 5rem">Freeside Atlanta</p>
-	<p style="font-size: 7rem">{{ .Title }}</p>
-	{{ if .IsHappening }}
-	<p style="font-size: 7rem"> Is under way!
-	<p>
-		{{ else }}
-	<p style="font-size: 4rem"> Is starting in {{ .DeltaTime }} minutes!
-	<p>
+	<p style="font-size: 7rem">Freeside Atlanta</p>
+	<p style="font-size: 5rem">{{ .Title }}{{ if .IsHappening }} Is under way!{{ else }} Is starting in {{
+		.DeltaTime }} minutes!
 		{{ end }}
-	<p>{{ .Description}}</p>
+	</p>
 	<img src="data:image/{{ .Mime }};charset=UTF-8;base64,{{ .Data }}"></img>
 </div>
