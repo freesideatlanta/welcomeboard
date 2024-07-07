@@ -10,15 +10,14 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"mime"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
+	photowelcome "github.com/freesideatlanta/welcomeboard/content/photoWelcome"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -26,9 +25,6 @@ import (
 var templatesFS embed.FS
 
 var templates *template.Template
-
-//go:embed greetings
-var greetings embed.FS
 
 func init() {
 	var err error
@@ -212,16 +208,11 @@ func (c *ContentRouter) getTimelyEvent(apiToken string) *Event {
 	return ret
 }
 
-type ImageInfo struct {
-	Mime string
-	Data string
-}
-
 func (c *ContentRouter) GetContent() []byte {
 	event := c.timelyEvent
 	// if we are more than an hour out or the event doesn't exist
 	if event == nil || time.Now().Before(event.Time.Add(-time.Minute * 30)) {
-		return genericGreeting()
+		return photowelcome.PhotoGreeting()
 	}
 	return c.eventGreeting(event)
 }
@@ -252,32 +243,3 @@ func (c *ContentRouter) eventGreeting(e *Event) []byte {
 	return buf.Bytes()
 }
 
-func genericGreeting() []byte {
-	items, err := greetings.ReadDir("greetings")
-	if err != nil {
-		fmt.Println("oops4: ", err.Error())
-	}
-	n := rand.Int() % len(items)
-	image := items[n]
-
-	splitName := strings.Split(image.Name(), ".")
-	extension := splitName[len(splitName)-1]
-	mimeType := mime.TypeByExtension(extension)
-	f, err := greetings.Open("greetings" + string(os.PathSeparator) + image.Name())
-	if err != nil {
-		fmt.Println("oops5: ", err.Error())
-	}
-	defer f.Close()
-	buf := bytes.NewBuffer([]byte{})
-	_, err = io.Copy(buf, f)
-	if err != nil {
-		fmt.Println("oops6: ", err.Error())
-	}
-	imgenc := base64.StdEncoding.EncodeToString(buf.Bytes())
-	buf2 := bytes.NewBuffer([]byte{})
-	templates.ExecuteTemplate(buf2, "photo.template.html", ImageInfo{
-		Mime: mimeType,
-		Data: imgenc,
-	})
-	return buf2.Bytes()
-}
