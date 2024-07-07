@@ -1,4 +1,4 @@
-package content
+package eventgreeting
 
 import (
 	"errors"
@@ -8,6 +8,19 @@ import (
 	"strings"
 	"time"
 )
+
+type apiJwtReturn struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+}
+
+type graphQlQuery struct {
+	Query string `json:"query"`
+}
+
+
 
 type UnPaginatedResult struct {
 	Data struct {
@@ -94,3 +107,4 @@ func NewParsetime(in string) (time.Time, error) {
 
 	return ret, nil
 }
+
