@@ -1,6 +1,7 @@
 <div>
-	<p style="font-size: 7rem">Freeside Atlanta</p>
-	<p style="font-size: 5rem">{{ .Title }}{{ if .IsHappening }} Is under way!{{ else }} Is starting in {{
+	<p class="display-1 text-center"><strong>Freeside Atlanta</strong></p>
+	<p class="display-2">{{ .Title }}</p>
+	<p class="display-2">{{ if .IsHappening }} Is under way!{{ else }} Is starting in {{
 		.DeltaTime }} minutes!
 		{{ end }}
 	</p>
